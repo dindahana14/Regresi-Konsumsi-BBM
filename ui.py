@@ -162,6 +162,3 @@ st.download_button(
     file_name='proyeksi.csv',
     mime='text/csv'
 )
-
-import webbrowser
-webbrowser.open("http://localhost:8501")
