@@ -25,24 +25,67 @@ with col2:
 if start_year > end_year:
     st.sidebar.warning("Tahun awal harus lebih kecil dari tahun akhir.")
 
-gdp_before = st.sidebar.number_input(f"GDP Tahun {start_year - 1} (Miliar Rupiah)", min_value=0, max_value=100000000, value=0, step=1000)
+gdp_text = st.sidebar.text_input(f"GDP Tahun {start_year - 1} (Miliar Rupiah)", value="0", key="gdp_text")
+gdp_before = {}
+if gdp_text:
+    try:
+        gdp_before = float(gdp_text.replace(".", ""))
+    except ValueError:
+        st.sidebar.warning("Masukkan nilai yang valid untuk GDP.")
+        gdp_before = 0
+else:
+    gdp_before = 0
+
 angka_pertumbuhan_list = []
 capita_list = []
 
 for i in range(start_year, end_year + 1):
     ape1, c1, gdpc1 = st.sidebar.columns(3)
     with ape1:
-        angka_pertumbuhan = st.sidebar.number_input(f"Angka Pertumbuhan Ekonomi Tahun {i} (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"angka_pertumbuhan_{i}")
+        angka_text = st.sidebar.text_input(f"Angka Pertumbuhan Ekonomi Tahun {i} (%)", value="0", key=f"angka_text_{i}")
+        angka_pertumbuhan = {}
+        if angka_text:
+            try:
+                angka_pertumbuhan = float(angka_text.replace(".", "").replace(",", "."))
+            except ValueError:
+                st.sidebar.warning("Masukkan nilai yang valid untuk angka pertumbuhan.")
+                angka_pertumbuhan = 0.0
+        else:
+            angka_pertumbuhan = 0.0
         angka_pertumbuhan_list.append(float(angka_pertumbuhan))
     with c1:
-        capita = st.sidebar.number_input(f"Capita Tahun {i} (Juta Jiwa)", min_value=0.0, max_value=100000000.0, value=0.0, step=1000.0, key=f"capital_{i}")
+        capita_text = st.sidebar.text_input(f"Capita Tahun {i} (Juta Jiwa)", value="0", key=f"capital_text_{i}")
+        capita = {}
+        if capita_text:
+            try:
+                capita = float(capita_text.replace(".", "").replace(",", "."))
+            except ValueError:
+                st.sidebar.warning("Masukkan nilai yang valid untuk capita.")
+                capita = 0.0
+        else:
+            capita = 0.0
         capita_list.append(float(capita))
     with gdpc1:
         gdp_list, gdp_per_capita_list = gdpc(gdp_before, start_year, angka_pertumbuhan_list, capita_list)
 
 ###### ---- PROYEKSI BBM PER PRODUK ----
 
-st.sidebar.header("Proyeksi BBM Per Jenis:")    
+st.sidebar.header("Proyeksi BBM Per Jenis:")  
+
+template_df = pd.DataFrame({
+    "JENIS KEBIJAKAN": [],
+    "JENIS BBM": [],
+    "KONSUMSI BBM": []
+})
+
+csv = template_df.to_csv(index=False).encode('utf-8')
+st.sidebar.download_button(
+    label="Download Template CSV",
+    data=csv,
+    file_name='template.csv',
+    mime='text/csv'
+)
+
 uploaded_file = st.sidebar.file_uploader("Upload File CSV", type=["csv"])
 
 product = pd.DataFrame()
@@ -61,7 +104,12 @@ else:
     bbm = product['JENIS BBM']
     proporsi = product['KONSUMSI BBM']
 
-    jenis_bbm = st.sidebar.multiselect("Jenis BBM", product['JENIS BBM'].unique().tolist())
+    all_options = product['JENIS BBM'].unique().tolist()
+    pilih_semua = st.sidebar.checkbox("Pilih Semua Jenis BBM")
+    if pilih_semua:
+        jenis_bbm = st.sidebar.multiselect("Jenis BBM", options=all_options, default=all_options)
+    else:
+        jenis_bbm = st.sidebar.multiselect("Jenis BBM", options=all_options)
     
     konsumsi_bbm = np.sum([float(str(i).replace(",", "")) for i in product['KONSUMSI BBM'] if i != "0"])
     st.sidebar.markdown(f"Total Konsumsi BBM Tahun {start_year - 1}:<br> {konsumsi_bbm:,.0f}".replace(",", ".") + " KL", unsafe_allow_html=True)
@@ -118,13 +166,14 @@ if uploaded_file is None:
     st.warning("Silakan upload file CSV untuk melanjutkan.")
 else:
     filtered_product = product[
-    (product['JENIS KEBIJAKAN'].isin(["JBT", "JBKP"])) &
+    (product['JENIS KEBIJAKAN'].isin(["JBT", "JBKP", "jbt", "jbkp"])) &
     (product['JENIS BBM'].isin(jenis_bbm))
     ]   
 
     filtered_product["KONSUMSI BBM"] = (filtered_product["KONSUMSI BBM"].astype(str).str.replace(",", "").astype(float))
 
     hasil_jbkp = proporsi_jbkp_jbt(grouped_proporsi,filtered_product,final_total_proporsi,jenis_bbm,tahun_list)
+
 
 df_proporsi_jbkp = pd.DataFrame(hasil_jbkp)
 df_proporsi_jbkp_fmt = format_angka(df_proporsi_jbkp)
